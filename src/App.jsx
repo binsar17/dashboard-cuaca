@@ -3,20 +3,15 @@ import { useEffect, useState } from "react";
 const API_KEY = import.meta.env.VITE_WEATHER_API_KEY;
 const BASE = "https://api.openweathermap.org/data/2.5";
 
-// Fungsi untuk menentukan warna background berdasarkan cuaca
 function getBackground(weatherMain, icon) {
   const isNight = icon?.includes("n");
   const condition = weatherMain?.toLowerCase();
 
   if (condition === "clear") {
-    return isNight 
-      ? "linear-gradient(135deg, #0f2027, #203a43, #2c5364)" // Malam cerah
-      : "linear-gradient(135deg, #00b4db, #0083b0)"; // Siang cerah
+    return isNight ? "linear-gradient(135deg, #0f2027, #203a43, #2c5364)" : "linear-gradient(135deg, #00b4db, #0083b0)";
   }
   if (condition === "clouds") {
-    return isNight 
-      ? "linear-gradient(135deg, #232526, #414345)" 
-      : "linear-gradient(135deg, #757f9a, #d7dde8)";
+    return isNight ? "linear-gradient(135deg, #232526, #414345)" : "linear-gradient(135deg, #757f9a, #d7dde8)";
   }
   if (condition === "rain" || condition === "drizzle") {
     return "linear-gradient(135deg, #3a7bd5, #3a6073)";
@@ -39,14 +34,18 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // FITUR BARU: State untuk menyimpan daftar kota favorit
+  const [favorites, setFavorites] = useState(() => {
+    const saved = localStorage.getItem("favorites");
+    return saved ? JSON.parse(saved) : ["Jakarta", "Bandung", "Tokyo"];
+  });
+
   async function fetchWeather(query, isCoords = false) {
     try {
       setLoading(true);
       setError("");
 
-      const queryParam = isCoords 
-        ? `lat=${query.lat}&lon=${query.lon}` 
-        : `q=${query}`;
+      const queryParam = isCoords ? `lat=${query.lat}&lon=${query.lon}` : `q=${query}`;
 
       const [curRes, foreRes] = await Promise.all([
         fetch(`${BASE}/weather?${queryParam}&appid=${API_KEY}&units=${unit}&lang=id`),
@@ -75,7 +74,6 @@ function App() {
 
   useEffect(() => {
     fetchWeather(city);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [unit]);
 
   function handleSubmit(e) {
@@ -84,7 +82,6 @@ function App() {
     fetchWeather(input.trim());
   }
 
-  // Fitur Deteksi Lokasi
   function handleGetLocation() {
     if (!navigator.geolocation) {
       alert("Browser kamu tidak mendukung fitur lokasi.");
@@ -103,14 +100,24 @@ function App() {
     );
   }
 
-  // Menghitung waktu lokal di kota tersebut
+  // FITUR BARU: Fungsi untuk tambah/hapus kota dari favorit
+  function toggleFavorite(cityName) {
+    let newFavorites;
+    if (favorites.includes(cityName)) {
+      newFavorites = favorites.filter((fav) => fav !== cityName);
+    } else {
+      newFavorites = [...favorites, cityName];
+    }
+    setFavorites(newFavorites);
+    localStorage.setItem("favorites", JSON.stringify(newFavorites));
+  }
+
   const localTime = current 
     ? new Date((Date.now() + (current.timezone * 1000))).toLocaleTimeString("id-ID", { timeZone: "UTC", hour: "2-digit", minute: "2-digit" })
     : "";
 
-  const bgGradient = current 
-    ? getBackground(current.weather[0].main, current.weather[0].icon)
-    : "linear-gradient(135deg, #e0eafc, #cfdef3)";
+  const bgGradient = current ? getBackground(current.weather[0].main, current.weather[0].icon) : "linear-gradient(135deg, #e0eafc, #cfdef3)";
+  const isFavorite = current && favorites.includes(current.name);
 
   return (
     <div style={{ ...styles.wrapper, background: bgGradient }}>
@@ -124,37 +131,53 @@ function App() {
             placeholder="Cari kota..."
             style={styles.input}
           />
-          <button type="button" onClick={handleGetLocation} style={styles.btnLocation} title="Gunakan Lokasi Saat Ini">
+          <button type="button" onClick={handleGetLocation} style={styles.btnLocation} title="Gunakan Lokasi">
             📍
           </button>
           <button type="submit" style={styles.btnSearch}>Cari</button>
-          <button 
-            type="button" 
-            onClick={() => setUnit(unit === "metric" ? "imperial" : "metric")} 
-            style={styles.btnToggle}
-          >
+          <button type="button" onClick={() => setUnit(unit === "metric" ? "imperial" : "metric")} style={styles.btnToggle}>
             {unit === "metric" ? "°C" : "°F"}
           </button>
         </form>
 
-        {loading && <p style={styles.loadingText}>Memuat data cuaca...</p>}
+        {/* FITUR BARU: Menampilkan Tombol Kota Favorit */}
+        {favorites.length > 0 && (
+          <div style={styles.favContainer}>
+            {favorites.map((fav) => (
+              <button 
+                key={fav} 
+                onClick={() => fetchWeather(fav)}
+                style={{
+                  ...styles.favChip,
+                  backgroundColor: city.toLowerCase() === fav.toLowerCase() ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.3)",
+                  color: city.toLowerCase() === fav.toLowerCase() ? "#333" : "#fff",
+                }}
+              >
+                {fav}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {loading && !current && <p style={styles.loadingText}>Memuat data cuaca...</p>}
         {error && <p style={styles.error}>{error}</p>}
 
         {current && (
           <>
-            {/* Kartu Cuaca Utama (Glassmorphism) */}
             <div style={styles.glassCard}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <h2 style={styles.cityName}>{current.name}, {current.sys.country}</h2>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                  <h2 style={styles.cityName}>{current.name}, {current.sys.country}</h2>
+                  {/* Tombol Bintang untuk Favorit */}
+                  <button onClick={() => toggleFavorite(current.name)} style={styles.btnStar} title="Simpan ke Favorit">
+                    {isFavorite ? "⭐" : "☆"}
+                  </button>
+                </div>
                 <span style={styles.time}>🕒 {localTime} Lokal</span>
               </div>
               
               <div style={styles.tempWrapper}>
-                <img 
-                  src={`https://openweathermap.org/img/wn/${current.weather[0].icon}@4x.png`} 
-                  alt="icon" 
-                  style={{ width: 140, height: 140 }}
-                />
+                <img src={`https://openweathermap.org/img/wn/${current.weather[0].icon}@4x.png`} alt="icon" style={{ width: 140, height: 140 }} />
                 <h1 style={styles.bigTemp}>{Math.round(current.main.temp)}°</h1>
               </div>
               <p style={styles.description}>{current.weather[0].description}</p>
@@ -175,19 +198,12 @@ function App() {
               </div>
             </div>
 
-            {/* Prakiraan 5 Hari */}
             <h3 style={styles.forecastTitle}>Prakiraan 5 Hari Ke Depan</h3>
             <div style={styles.forecastRow}>
               {forecast.map((item) => (
                 <div key={item.dt} style={styles.forecastCard}>
-                  <p style={styles.forecastDay}>
-                    {new Date(item.dt * 1000).toLocaleDateString("id-ID", { weekday: "short" })}
-                  </p>
-                  <img 
-                    src={`https://openweathermap.org/img/wn/${item.weather[0].icon}@2x.png`} 
-                    alt="icon" 
-                    style={{ width: 60, height: 60, margin: "10px 0" }} 
-                  />
+                  <p style={styles.forecastDay}>{new Date(item.dt * 1000).toLocaleDateString("id-ID", { weekday: "short" })}</p>
+                  <img src={`https://openweathermap.org/img/wn/${item.weather[0].icon}@2x.png`} alt="icon" style={{ width: 60, height: 60, margin: "10px 0" }} />
                   <p style={styles.forecastTemp}>{Math.round(item.main.temp)}°</p>
                 </div>
               ))}
@@ -199,195 +215,34 @@ function App() {
   );
 }
 
-// --- STYLING ---
 const styles = {
-  wrapper: {
-    minHeight: "100vh",
-    width: "100%",
-    transition: "background 1s ease-in-out", // Animasi transisi background
-    padding: "40px 0",
-    boxSizing: "border-box",
-  },
-  container: {
-    maxWidth: 800,
-    margin: "0 auto",
-    padding: "0 20px",
-    fontFamily: "'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
-  },
-  title: {
-    textAlign: "center",
-    fontSize: "2.8rem",
-    marginBottom: "30px",
-    color: "#fff",
-    textShadow: "0 4px 10px rgba(0,0,0,0.3)", // Biar teks kebaca di background apapun
-    fontWeight: "800",
-  },
-  form: {
-    display: "flex",
-    gap: "10px",
-    marginBottom: "30px",
-    background: "rgba(255, 255, 255, 0.2)",
-    padding: "15px",
-    borderRadius: "16px",
-    backdropFilter: "blur(10px)",
-    boxShadow: "0 4px 15px rgba(0,0,0,0.1)",
-  },
-  input: {
-    flex: 1,
-    padding: "12px 16px",
-    borderRadius: "10px",
-    border: "none",
-    fontSize: "16px",
-    outline: "none",
-    background: "rgba(255, 255, 255, 0.9)",
-  },
-  btnSearch: {
-    padding: "12px 24px",
-    borderRadius: "10px",
-    border: "none",
-    backgroundColor: "#333",
-    color: "white",
-    fontSize: "16px",
-    cursor: "pointer",
-    fontWeight: "bold",
-  },
-  btnLocation: {
-    padding: "12px 16px",
-    borderRadius: "10px",
-    border: "none",
-    backgroundColor: "#fff",
-    fontSize: "18px",
-    cursor: "pointer",
-  },
-  btnToggle: {
-    padding: "12px 20px",
-    borderRadius: "10px",
-    border: "2px solid #fff",
-    backgroundColor: "transparent",
-    color: "#fff",
-    fontSize: "16px",
-    cursor: "pointer",
-    fontWeight: "bold",
-  },
-  loadingText: {
-    textAlign: "center",
-    color: "#fff",
-    fontWeight: "bold",
-    fontSize: "1.2rem",
-  },
-  error: {
-    color: "#fff",
-    textAlign: "center",
-    fontWeight: "bold",
-    padding: "10px",
-    backgroundColor: "rgba(255, 77, 79, 0.8)",
-    borderRadius: "8px",
-    backdropFilter: "blur(5px)",
-  },
-  glassCard: {
-    backgroundColor: "rgba(255, 255, 255, 0.85)", // Transparan
-    backdropFilter: "blur(15px)", // Efek kaca
-    border: "1px solid rgba(255, 255, 255, 0.5)",
-    color: "#333",
-    padding: "30px",
-    borderRadius: "20px",
-    boxShadow: "0 15px 35px rgba(0,0,0,0.2)",
-    textAlign: "center",
-  },
-  cityName: {
-    margin: 0,
-    fontSize: "1.8rem",
-    color: "#111",
-    fontWeight: "700",
-  },
-  time: {
-    fontSize: "1rem",
-    color: "#555",
-    fontWeight: "600",
-    backgroundColor: "rgba(0,0,0,0.05)",
-    padding: "5px 10px",
-    borderRadius: "8px",
-  },
-  tempWrapper: {
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    gap: "10px",
-    margin: "10px 0",
-  },
-  bigTemp: {
-    fontSize: "5.5rem",
-    margin: 0,
-    fontWeight: "800",
-    color: "#111",
-    letterSpacing: "-2px",
-  },
-  description: {
-    textTransform: "capitalize",
-    fontSize: "1.4rem",
-    margin: "0 0 20px 0",
-    color: "#333",
-    fontWeight: "500",
-  },
-  detailsRow: {
-    display: "flex",
-    justifyContent: "space-around",
-    borderTop: "1px solid rgba(0,0,0,0.1)",
-    paddingTop: "20px",
-    marginTop: "20px",
-  },
-  detailItem: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "5px",
-    fontSize: "1.1rem",
-    color: "#222",
-  },
-  detailLabel: {
-    fontSize: "0.85rem",
-    color: "#555",
-    textTransform: "uppercase",
-    letterSpacing: "1px",
-    fontWeight: "600",
-  },
-  forecastTitle: {
-    marginTop: "30px",
-    color: "#fff",
-    textShadow: "0 2px 5px rgba(0,0,0,0.3)",
-  },
-  forecastRow: {
-    display: "flex",
-    gap: "15px",
-    overflowX: "auto",
-    paddingBottom: "15px",
-  },
-  forecastCard: {
-    flex: "0 0 auto",
-    width: "110px",
-    backgroundColor: "rgba(255, 255, 255, 0.7)",
-    backdropFilter: "blur(10px)",
-    border: "1px solid rgba(255, 255, 255, 0.4)",
-    color: "#333",
-    padding: "15px 10px",
-    borderRadius: "16px",
-    boxShadow: "0 8px 20px rgba(0,0,0,0.1)",
-    textAlign: "center",
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-  },
-  forecastDay: {
-    fontWeight: "700",
-    margin: 0,
-    fontSize: "1rem",
-    color: "#222",
-  },
-  forecastTemp: {
-    fontSize: "1.5rem",
-    fontWeight: "800",
-    margin: "5px 0",
-    color: "#111",
-  },
+  wrapper: { minHeight: "100vh", width: "100%", transition: "background 1s ease-in-out", padding: "40px 0", boxSizing: "border-box" },
+  container: { maxWidth: 800, margin: "0 auto", padding: "0 20px", fontFamily: "'Segoe UI', Roboto, Helvetica, Arial, sans-serif" },
+  title: { textAlign: "center", fontSize: "2.8rem", marginBottom: "20px", color: "#fff", textShadow: "0 4px 10px rgba(0,0,0,0.3)", fontWeight: "800" },
+  form: { display: "flex", gap: "10px", marginBottom: "15px", background: "rgba(255, 255, 255, 0.2)", padding: "15px", borderRadius: "16px", backdropFilter: "blur(10px)", boxShadow: "0 4px 15px rgba(0,0,0,0.1)" },
+  input: { flex: 1, padding: "12px 16px", borderRadius: "10px", border: "none", fontSize: "16px", outline: "none", background: "rgba(255, 255, 255, 0.9)" },
+  btnSearch: { padding: "12px 24px", borderRadius: "10px", border: "none", backgroundColor: "#333", color: "white", fontSize: "16px", cursor: "pointer", fontWeight: "bold" },
+  btnLocation: { padding: "12px 16px", borderRadius: "10px", border: "none", backgroundColor: "#fff", fontSize: "18px", cursor: "pointer" },
+  btnToggle: { padding: "12px 20px", borderRadius: "10px", border: "2px solid #fff", backgroundColor: "transparent", color: "#fff", fontSize: "16px", cursor: "pointer", fontWeight: "bold" },
+  favContainer: { display: "flex", gap: "10px", flexWrap: "wrap", marginBottom: "25px", justifyContent: "center" },
+  favChip: { padding: "8px 16px", borderRadius: "20px", border: "1px solid rgba(255,255,255,0.5)", cursor: "pointer", fontSize: "14px", fontWeight: "600", backdropFilter: "blur(5px)", transition: "all 0.2s" },
+  loadingText: { textAlign: "center", color: "#fff", fontWeight: "bold", fontSize: "1.2rem" },
+  error: { color: "#fff", textAlign: "center", fontWeight: "bold", padding: "10px", backgroundColor: "rgba(255, 77, 79, 0.8)", borderRadius: "8px", backdropFilter: "blur(5px)" },
+  glassCard: { backgroundColor: "rgba(255, 255, 255, 0.85)", backdropFilter: "blur(15px)", border: "1px solid rgba(255, 255, 255, 0.5)", color: "#333", padding: "30px", borderRadius: "20px", boxShadow: "0 15px 35px rgba(0,0,0,0.2)", textAlign: "center" },
+  cityName: { margin: 0, fontSize: "1.8rem", color: "#111", fontWeight: "700" },
+  btnStar: { background: "none", border: "none", fontSize: "1.8rem", cursor: "pointer", padding: 0, lineHeight: 1 },
+  time: { fontSize: "1rem", color: "#555", fontWeight: "600", backgroundColor: "rgba(0,0,0,0.05)", padding: "5px 10px", borderRadius: "8px" },
+  tempWrapper: { display: "flex", justifyContent: "center", alignItems: "center", gap: "10px", margin: "10px 0" },
+  bigTemp: { fontSize: "5.5rem", margin: 0, fontWeight: "800", color: "#111", letterSpacing: "-2px" },
+  description: { textTransform: "capitalize", fontSize: "1.4rem", margin: "0 0 20px 0", color: "#333", fontWeight: "500" },
+  detailsRow: { display: "flex", justifyContent: "space-around", borderTop: "1px solid rgba(0,0,0,0.1)", paddingTop: "20px", marginTop: "20px" },
+  detailItem: { display: "flex", flexDirection: "column", gap: "5px", fontSize: "1.1rem", color: "#222" },
+  detailLabel: { fontSize: "0.85rem", color: "#555", textTransform: "uppercase", letterSpacing: "1px", fontWeight: "600" },
+  forecastTitle: { marginTop: "30px", color: "#fff", textShadow: "0 2px 5px rgba(0,0,0,0.3)" },
+  forecastRow: { display: "flex", gap: "15px", overflowX: "auto", paddingBottom: "15px" },
+  forecastCard: { flex: "0 0 auto", width: "110px", backgroundColor: "rgba(255, 255, 255, 0.7)", backdropFilter: "blur(10px)", border: "1px solid rgba(255, 255, 255, 0.4)", color: "#333", padding: "15px 10px", borderRadius: "16px", boxShadow: "0 8px 20px rgba(0,0,0,0.1)", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center" },
+  forecastDay: { fontWeight: "700", margin: 0, fontSize: "1rem", color: "#222" },
+  forecastTemp: { fontSize: "1.5rem", fontWeight: "800", margin: "5px 0", color: "#111" },
 };
 
 export default App;
