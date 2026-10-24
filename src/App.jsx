@@ -26,6 +26,44 @@ function getBackground(weatherMain, icon) {
   return isNight ? "linear-gradient(135deg, #141e30, #243b55)" : "linear-gradient(135deg, #e0eafc, #cfdef3)";
 }
 
+// KOMPONEN BARU: Efek Animasi Hujan & Salju
+function WeatherEffect({ condition }) {
+  if (!condition) return null;
+  const cond = condition.toLowerCase();
+  const isRain = cond.includes("rain") || cond.includes("drizzle") || cond.includes("thunderstorm");
+  const isSnow = cond.includes("snow");
+
+  if (!isRain && !isSnow) return null;
+
+  // Membuat 50 tetesan hujan / butiran salju dengan posisi acak
+  const particles = Array.from({ length: 50 }).map((_, i) => ({
+    id: i,
+    left: `${Math.random() * 100}%`,
+    animationDuration: `${Math.random() * 1 + 0.5}s`, // Kecepatan hujan
+    animationDelay: `${Math.random() * 2}s`,
+    opacity: Math.random() * 0.5 + 0.3
+  }));
+
+  return (
+    <div className="weather-effect-container">
+      {particles.map((p) => (
+        <div
+          key={p.id}
+          className={isRain ? "rain-drop" : "snow-flake"}
+          style={{
+            left: p.left,
+            animationDuration: isSnow ? `${Math.random() * 3 + 2}s` : p.animationDuration, // Salju lebih lambat
+            animationDelay: p.animationDelay,
+            opacity: p.opacity,
+            width: isSnow ? `${Math.random() * 6 + 4}px` : undefined,
+            height: isSnow ? `${Math.random() * 6 + 4}px` : undefined,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
 function App() {
   const [city, setCity] = useState(localStorage.getItem("lastCity") || "Jakarta");
   const [input, setInput] = useState(city);
@@ -119,6 +157,9 @@ function App() {
 
   return (
     <div className="app-wrapper" style={{ background: bgGradient }}>
+      {/* Panggil Animasi Cuaca di sini */}
+      {current && <WeatherEffect condition={current.weather[0].main} />}
+
       <div className="app-container">
         <h1 className="app-title">Dashboard Cuaca</h1>
 
