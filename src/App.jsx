@@ -16,7 +16,6 @@ function getBackground(weatherMain, icon) {
   return isNight ? "linear-gradient(135deg, #141e30, #243b55)" : "linear-gradient(135deg, #e0eafc, #cfdef3)";
 }
 
-// Fungsi untuk menerjemahkan angka AQI (1-5) ke teks dan warna
 function getAqiInfo(aqi) {
   switch(aqi) {
     case 1: return { text: "Baik", color: "#4caf50" };
@@ -68,7 +67,7 @@ function App() {
   const [input, setInput] = useState(city);
   const [current, setCurrent] = useState(null);
   const [forecast, setForecast] = useState([]);
-  const [aqi, setAqi] = useState(null); // State baru untuk kualitas udara
+  const [aqi, setAqi] = useState(null);
   const [unit, setUnit] = useState("metric");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -84,7 +83,6 @@ function App() {
       setError("");
       const queryParam = isCoords ? `lat=${query.lat}&lon=${query.lon}` : `q=${query}`;
 
-      // 1. Ambil data cuaca & prakiraan
       const [curRes, foreRes] = await Promise.all([
         fetch(`${BASE}/weather?${queryParam}&appid=${API_KEY}&units=${unit}&lang=id`),
         fetch(`${BASE}/forecast?${queryParam}&appid=${API_KEY}&units=${unit}&lang=id`),
@@ -95,13 +93,12 @@ function App() {
       const curData = await curRes.json();
       const foreData = await foreRes.json();
 
-      // 2. Ambil data Kualitas Udara (AQI) berdasarkan koordinat dari data cuaca
       const aqiRes = await fetch(`${BASE}/air_pollution?lat=${curData.coord.lat}&lon=${curData.coord.lon}&appid=${API_KEY}`);
       const aqiData = await aqiRes.json();
 
       setCurrent(curData);
       setForecast(foreData.list.filter((_, i) => i % 8 === 0).slice(0, 5));
-      setAqi(aqiData.list[0].main.aqi); // Simpan nilai AQI (1-5)
+      setAqi(aqiData.list[0].main.aqi);
       
       setCity(curData.name);
       setInput(curData.name);
@@ -145,7 +142,6 @@ function App() {
 
   const localTime = current ? new Date((Date.now() + (current.timezone * 1000))).toLocaleTimeString("id-ID", { timeZone: "UTC", hour: "2-digit", minute: "2-digit" }) : "";
   
-  // Fungsi format jam untuk Sunrise & Sunset
   const formatTime = (unix) => {
     if (!unix || !current) return "";
     return new Date((unix + current.timezone) * 1000).toLocaleTimeString("id-ID", { timeZone: "UTC", hour: "2-digit", minute: "2-digit" });
@@ -218,7 +214,6 @@ function App() {
                 </div>
               </div>
 
-              {/* FITUR BARU: Kualitas Udara & Matahari */}
               <div className="extra-info-row">
                 <div className="extra-item">
                   <span className="extra-label">Kualitas Udara</span>
@@ -234,7 +229,6 @@ function App() {
                   </div>
                 </div>
               </div>
-
             </div>
 
             <h3 className="forecast-title">Prakiraan 5 Hari Ke Depan</h3>
